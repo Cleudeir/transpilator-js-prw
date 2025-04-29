@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS <=> ADVPL Transpiler</title>
+    <!-- Remove old stylesheet link -->
+    <!-- <link rel="stylesheet" href="src/css/style.css"> -->
+    <!-- Add Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Optional: Add custom styles or overrides here if needed */
+        /* Forcing a slightly larger default textarea size */
+        textarea {
+            min-height: 450px; /* Adjust as needed */
+        }
+        /* Style for selected radio button label */
+        input[type="radio"]:checked + label {
+             background-color: #e0f2fe; /* Light blue background */
+             border-color: #3b82f6; /* Blue border */
+             color: #1e40af; /* Darker blue text */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans p-5">
+    <!-- Main Container -->
+    <div class="container max-w-7xl mx-auto bg-white rounded-lg shadow-xl p-8">
+        
+        <!-- Header -->
+        <h1 class="text-center text-4xl font-bold text-gray-800 mb-6 pb-4 border-b border-gray-200">
+            JavaScript <=> ADVPL Transpiler
+        </h1>
+
+        <!-- Direction Selector -->
+        <div class="mb-6 flex justify-center space-x-4">
+            <h2 class="text-lg font-semibold mr-4 self-center">Direction:</h2>
+            <div>
+                <input type="radio" name="direction" id="jsToAdvpl" value="jsToAdvpl" checked class="hidden">
+                <label for="jsToAdvpl" class="px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                    JavaScript &rarr; ADVPL
+                </label>
+            </div>
+            <div>
+                <input type="radio" name="direction" id="advplToJs" value="advplToJs" class="hidden">
+                <label for="advplToJs" class="px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                    ADVPL &rarr; JavaScript
+                </label>
+            </div>
+        </div>
+        
+        <!-- Editor Section -->
+        <div class="editor-container flex flex-col md:flex-row gap-8 mb-8">
+            <!-- Left Editor Box (Input/Output based on direction) -->
+            <div class="editor-box flex-1 flex flex-col">
+                <h3 id="leftTitle" class="text-2xl font-semibold text-blue-700 mb-4">JavaScript Code (Input)</h3>
+                <textarea 
+                    id="leftCode" 
+                    placeholder="Enter code here..."
+                    class="w-full flex-grow font-mono p-4 border border-gray-300 rounded-lg text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-gray-50"
+                >function calculateSum(a, b) {
+  var result = a + b;
+  console.log("The sum is: " + result);
+  return result;
+}
+
+var x = 10;
+var y = 20;
+var sum = calculateSum(x, y);
+
+if (sum > 30) {
+  console.log("Sum is greater than 30");
+} else {
+  console.log("Sum is not greater than 30");
+}
+
+for (var i = 0; i < 5; i++) {
+  console.log("Iteration: " + i);
+}</textarea>
+            </div>
+            
+            <!-- Separator (visible on larger screens) -->
+            <div class="hidden md:block border-l border-gray-200 mx-4"></div>
+
+            <!-- Right Editor Box (Input/Output based on direction) -->
+            <div class="editor-box flex-1 flex flex-col">
+                <h3 id="rightTitle" class="text-2xl font-semibold text-green-700 mb-4">ADVPL Code (Output)</h3>
+                <textarea 
+                    id="rightCode" 
+                    placeholder="Transpiled code will appear here..."
+                    readonly
+                    class="w-full flex-grow font-mono p-4 border border-gray-300 rounded-lg text-sm shadow-inner bg-gray-100 resize-none"
+                ></textarea>
+            </div>
+        </div>
+        
+        <!-- Button Section -->
+        <div class="button-container flex justify-center my-8 space-x-4">
+            <button 
+                id="transpileBtn"
+                class="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-bold text-lg py-3 px-10 rounded-full shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-1"
+            >
+                Transpile
+            </button>
+        </div>
+        
+        <!-- Info Section -->
+        <div class="info-section bg-blue-50 border border-blue-200 p-6 rounded-lg mt-10 text-gray-700">
+            <h3 class="text-xl font-semibold text-blue-800 mb-3">About this Transpiler</h3>
+            <p class="mb-2">This tool converts code between JavaScript and ADVPL (Advanced Protheus Language). Select the desired direction above.</p>
+            <p class="mb-2">The transpiler handles:</p>
+            <ul class="list-disc list-inside space-y-1 mb-3 pl-4">
+                <li>Basic variable declarations</li>
+                <li>Function declarations and calls</li>
+                <li>Common control structures (if/else, for)</li>
+                <li>Basic operator mapping</li>
+                <li>Mapping for some common built-in functions</li>
+            </ul>
+            <p class="text-sm text-gray-600">
+                <strong class="font-semibold">Note:</strong> This is a basic transpiler for demonstration. It may not handle all language features, complex scope scenarios, or advanced syntax. Manual adjustments are often necessary for production code.
+            </p>
+        </div>
+    </div>
+
+    <!-- External JS Libraries -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script> --> 
+    <!-- Removed require.js as it's not used -->
+    
+    <!-- Load Transpiler Classes -->
+    <script src="src/js/jsToAdvpl.js"></script>
+    <script src="src/js/advplToJs.js"></script>
+
+    <!-- Load Main Script (DOM Interaction) -->
+    <script src="src/js/script.js"></script> <!-- This should be last -->
+</body>
+</html>
