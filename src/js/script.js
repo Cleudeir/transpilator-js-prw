@@ -130,16 +130,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputCode = leftCodeTextArea.value;
         let outputCode = '';
 
+        // Clear previous errors/output
+        rightCodeTextArea.value = ''; 
+        rightCodeTextArea.classList.remove('text-red-600'); // Remove error styling if present
+
         try {
+            let transpiler = null;
             if (selectedDirection === 'jsToAdvpl') {
-                outputCode = jsToAdvplTranspiler.transpile(inputCode);
+                transpiler = jsToAdvplTranspiler;
             } else { // advplToJs
-                outputCode = advplToJsTranspiler.transpile(inputCode);
+                transpiler = advplToJsTranspiler;
             }
-             rightCodeTextArea.value = outputCode;
+            
+            // Perform transpilation
+            outputCode = transpiler.transpile(inputCode);
+            
+            // Display successful output
+            rightCodeTextArea.value = outputCode;
+
         } catch (error) {
             console.error("Transpilation failed:", error);
-            rightCodeTextArea.value = `// Transpilation Error:\n// ${error.message}`;
+            
+            let errorMessage = `// --- Transpilation Error ---`;
+
+            // Check if it's our custom error
+            if (error.name === "TranspilationError" && error.unsupportedFeatures && error.unsupportedFeatures.length > 0) {
+                errorMessage += `\n// ${error.message}`; 
+                errorMessage += `\n// \n// Unsupported Features Found:`;
+                error.unsupportedFeatures.forEach(feature => {
+                    errorMessage += `\n// - ${feature}`;
+                });
+            } else {
+                // Generic error message for unexpected issues
+                errorMessage += `\n// An unexpected error occurred: ${error.message}`;
+            }
+             errorMessage += `\n// --- Please check the input code. ---`;
+
+            // Display the formatted error in the output area
+            rightCodeTextArea.value = errorMessage;
+            rightCodeTextArea.classList.add('text-red-600'); // Add styling for errors
         }
     });
 

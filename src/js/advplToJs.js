@@ -47,6 +47,10 @@ class ADVPLToJSTranspiler {
             endDoStmt: /^\s*ENDDO\s*$/i,
             // ... outras estruturas (ex: METHOD, CLASS, etc. - mais complexas)
         };
+        
+        this.unsupportedFeatures = []; // Store detected issues
+        this.currentIndent = 0;      // Basic indentation tracking
+        this.indentString = '    ';   // 4 spaces
     }
 
     // --- Funções Helper para Mapeamento ---
@@ -156,9 +160,14 @@ class ADVPLToJSTranspiler {
         return processedLine;
     }
 
-    _transpileLine(line) {
+    _getIndent() {
+        return this.indentString.repeat(this.currentIndent);
+    }
+
+    _transpileLine(line, lineNumber) {
         const trimmedLine = line.trim();
         let jsLine = null;
+        let indentAdjustment = 0; // 0: no change, 1: increase, -1: decrease
 
         // Preserva comentários
         if (this.regexPatterns.commentBlockStart.test(trimmedLine) || this.regexPatterns.commentBlockEnd.test(trimmedLine) || this.regexPatterns.commentLine.test(trimmedLine)) {
@@ -218,80 +227,131 @@ class ADVPLToJSTranspiler {
                     case 'endIfStmt':
                         jsLine = `}`;
                         break;
-                    case 'forStmt':
-                         const [, iterator, start, end, step] = match;
-                         const jsStep = step ? ` += ${this._replaceFunctions(step)}` : '++'; // Usa ++ se step não for definido ou for 1
-                         // Assume que start, end e step podem precisar de transpilação de função também
-                         const jsStart = this._replaceFunctions(start);
-                         const jsEnd = this._replaceFunctions(end);
-                         jsLine = `for (let ${iterator} = ${jsStart}; ${iterator} <= ${jsEnd}; ${iterator}${jsStep}) {`; // Note <= para TO
+                    case 'forStmt': {
+                        let [, loopVar, start, end, step] = match;
+                        // Converte para loop for JS (0-based vs 1-based precisa de atenção, mas ADVPL FOR é inclusivo)
+                        // ADVPL: FOR i := 1 TO 10 => JS: for (let i = 1; i <= 10; i++)
+                        // ADVPL: FOR i := 10 TO 1 STEP -1 => JS: for (let i = 10; i >= 1; i--)
+                        step = step ? this._replaceFunctions(step.trim()) : '1'; // Processa step e default para 1
+                        start = this._replaceFunctions(start.trim());
+                        end = this._replaceFunctions(end.trim());
+
+                        let comparison = '<=';
+                        let increment = `${loopVar}++`;
+                        // Basic check for step direction (needs improvement for non-literal step)
+                        if (!isNaN(parseFloat(step)) && parseFloat(step) < 0) {
+                             comparison = '>=';
+                             increment = `${loopVar} += ${step}`; // or ${loopVar}-- if step is -1
+                        } else if (step !== '1') {
+                             increment = `${loopVar} += ${step}`; // Handle custom positive step
+                        }
+
+                        jsLine = `for (let ${loopVar} = ${start}; ${loopVar} ${comparison} ${end}; ${increment}) {`;
                         break;
+                    }
                     case 'nextStmt':
                         jsLine = `}`;
                         break;
-                    case 'doWhileStmt':
-                        const [, conditionWhile] = match;
-                        jsLine = `while (${this._replaceFunctions(conditionWhile.trim())}) {`;
+                    case 'doWhileStmt': {
+                        const [, condition] = match;
+                        jsLine = `while (${this._transpileExpression(condition.trim())}) {`;
                         break;
+                    }
                     case 'endDoStmt':
                         jsLine = `}`;
                         break;
-                    // Adicione outros casos aqui
+                    // Adicione mais casos para outras estruturas ADVPL aqui
+
+                    default:
+                        // Se não reconhecido por Regex específicos, tenta substituir funções e ver se é uma chamada
+                        const potentiallyProcessed = this._replaceFunctions(trimmedLine);
+                        if (potentiallyProcessed !== trimmedLine && potentiallyProcessed.includes('(')) {
+                             // Parece ser uma chamada de função/método após substituição
+                             jsLine = potentiallyProcessed.endsWith(';') ? potentiallyProcessed : potentiallyProcessed + ';';
+                        } else {
+                            // Não reconhecido
+                            this.unsupportedFeatures.push(`Line ${lineNumber + 1}: Unrecognized ADVPL syntax: '${trimmedLine}'`);
+                            jsLine = null; // Ignora a linha
+                        }
+                        break;
                 }
                 // Se encontrou um match e gerou jsLine, para de verificar outros padrões para esta linha
                 if (jsLine !== null) break;
             }
         }
 
-        // Se nenhum padrão estrutural foi encontrado, pode ser uma chamada de função solta ou outra expressão
-        if (jsLine === null && trimmedLine.length > 0) {
-            // Tenta substituir chamadas de função na linha inteira
-             jsLine = this._replaceFunctions(trimmedLine);
-             // Converte literais de array restantes
-             jsLine = jsLine.replace(/\{/g, '[').replace(/\}/g, ']');
-             // Adiciona ponto e vírgula se não for uma estrutura de controle incompleta
-             if (!/\{$|\}$/.test(jsLine.trim())) { // Não adiciona ; se terminar com { ou }
-                jsLine += ';';
-             }
+        // Handle indentation AFTER processing the line
+        if (indentAdjustment < 0) {
+            this.currentIndent = Math.max(0, this.currentIndent + indentAdjustment);
         }
 
+        let indentedJsLine = null;
+        if (jsLine !== null) {
+            indentedJsLine = this._getIndent() + jsLine;
+        }
 
-        // Mantém a indentação original (aproximadamente)
-        const leadingWhitespace = line.match(/^\s*/)[0];
-        return jsLine !== null ? leadingWhitespace + jsLine : line; // Retorna linha original se não foi transpilada
+        // Increase indent for the *next* line if needed
+        if (indentAdjustment > 0) {
+            this.currentIndent++;
+        }
+        
+         return indentedJsLine;
+    }
+
+    // Função básica para transpilar expressões (condições, valores, etc.)
+    // Precisa ser muito mais robusta para um transpiler real
+    _transpileExpression(expression) {
+        let jsExpression = expression;
+
+        // 1. Substituir funções ADVPL conhecidas
+        jsExpression = this._replaceFunctions(jsExpression);
+
+        // 2. Converter operadores lógicos ADVPL para JS
+        jsExpression = jsExpression.replace(/\s+\.AND\.\s+/gi, ' && ');
+        jsExpression = jsExpression.replace(/\s+\.OR\.\s+/gi, ' || ');
+        jsExpression = jsExpression.replace(/\s+\.NOT\.\s+/gi, ' ! '); // Cuidado com a ordem e parênteses
+        // Adiciona parênteses em volta do NOT para segurança
+        jsExpression = jsExpression.replace(/!\s+([^\s(]+)/g, '!($1)'); 
+
+        // 3. Converter operadores de comparação (ADVPL é case-insensitive para operadores)
+        jsExpression = jsExpression.replace(/\s*=\s*/g, ' === '); // ADVPL = é comparação, não atribuição (:=)
+        jsExpression = jsExpression.replace(/\s*<>/g, ' !== ');
+        jsExpression = jsExpression.replace(/\s*!=/g, ' !== ');
+
+        // 4. Converter literais ADVPL
+        jsExpression = jsExpression.replace(/\.T\./gi, 'true');
+        jsExpression = jsExpression.replace(/\.F\./gi, 'false');
+        jsExpression = jsExpression.replace(/NIL/gi, 'null');
+        jsExpression = jsExpression.replace(/\{/g, '[').replace(/\}/g, ']'); // Converte {} para []
+
+        // 5. Tratamento básico para chamadas de método (requer mais inteligência)
+        // Ex: oObj:Method(x) -> oObj.Method(x)
+        jsExpression = jsExpression.replace(/([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)\(/g, '$1.$2(');
+
+        // TODO: Adicionar mais regras de conversão conforme necessário
+
+        return jsExpression.trim();
     }
 
     transpile(advplCode) {
+        this.unsupportedFeatures = []; // Reset errors
+        this.currentIndent = 0;      // Reset indent
         const lines = advplCode.split('\n');
         const jsLines = [];
-        let inCommentBlock = false;
 
-        jsLines.push(`// --- Transpiled from ADVPL to JavaScript ---`);
-
-        lines.forEach(line => {
-            const trimmedLine = line.trim();
-
-            // Gerencia blocos de comentário /* */
-            if (this.regexPatterns.commentBlockStart.test(trimmedLine)) {
-                inCommentBlock = true;
-                jsLines.push(line); // Preserva linha de início do bloco
-                return; // Próxima linha
+        for (let i = 0; i < lines.length; i++) {
+            const advplLine = lines[i];
+            const jsLine = this._transpileLine(advplLine, i);
+            if (jsLine !== null) { // Only add if a line was generated
+                jsLines.push(jsLine);
             }
-            if (inCommentBlock) {
-                jsLines.push(line); // Preserva linha dentro do bloco
-                if (this.regexPatterns.commentBlockEnd.test(trimmedLine)) {
-                    inCommentBlock = false;
-                }
-                return; // Próxima linha
-            }
+        }
+        
+        // --- Check for errors before returning ---
+        if (this.unsupportedFeatures.length > 0) {
+           throw new TranspilationError("Unsupported features found in ADVPL code.", this.unsupportedFeatures);
+        }
 
-            // Transpila linha a linha
-             const transpiled = this._transpileLine(line);
-             jsLines.push(transpiled);
-
-        });
-
-        jsLines.push(`// --- End of Transpilation ---`);
         return jsLines.join('\n');
     }
 } 

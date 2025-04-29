@@ -1,5 +1,14 @@
 // --- Transpiler Classes --- 
 
+// Custom Error for Transpilation Issues
+class TranspilationError extends Error {
+    constructor(message, unsupportedFeatures = []) {
+        super(message);
+        this.name = "TranspilationError";
+        this.unsupportedFeatures = unsupportedFeatures; // Array of strings describing issues
+    }
+}
+
 // JS to ADVPL Transpiler
 class JSToADVPLTranspiler {
     constructor() {
@@ -24,12 +33,14 @@ class JSToADVPLTranspiler {
             ['includes', 'aScan'] // Note: aScan returns index (0 if not found), not boolean
         ]);
         this.blockClosers = []; // Stack to track block types (if, for, function)
+        this.unsupportedFeatures = []; // Store detected issues
     }
     
     reset() {
         this.currentIndent = 0;
         this.sourceMap.clear();
         this.blockClosers = [];
+        this.unsupportedFeatures = []; // Reset issues on new transpile
     }
 
     transpile(jsCode) {
@@ -67,10 +78,21 @@ class JSToADVPLTranspiler {
                  }
             }
             
+            // --- Check for errors before returning ---
+            if (this.unsupportedFeatures.length > 0) {
+                throw new TranspilationError("Unsupported features found in JavaScript code.", this.unsupportedFeatures);
+            }
+            
             return advplLines.join('\n');
         } catch (error) {
-            console.error("Transpilation Error:", error);
-            return `// Error during JS to ADVPL transpilation: ${error.message}\n// Original JavaScript code preserved:\n${jsCode}`;
+             // Re-throw our custom error, or wrap other errors
+             if (error instanceof TranspilationError) {
+                 throw error; 
+             } else {
+                console.error("Unexpected Transpilation Error:", error);
+                // Wrap unexpected errors for consistent handling upstream
+                throw new TranspilationError(`Internal transpiler error: ${error.message}`, [ `Internal Error: ${error.message}`]);
+             }
         }
     }
     
@@ -81,7 +103,8 @@ class JSToADVPLTranspiler {
             if (trimmedLine.startsWith('function')) blockStack.push('Function');
             else if (trimmedLine.startsWith('if')) blockStack.push('If');
             else if (trimmedLine.startsWith('else if')) blockStack.push('ElseIf'); // Handled as part of If
-            else if (trimmedLine === 'else {') blockStack.push('Else'); // Handled as part of If
+            // Match 'else {' even if preceded by '}'
+            else if (trimmedLine.includes('else {')) blockStack.push('Else'); // Handled as part of If 
             else if (trimmedLine.startsWith('for')) blockStack.push('For');
             // Add other block types like while, switch if needed
             
@@ -165,12 +188,26 @@ class JSToADVPLTranspiler {
             advplLine = this.transpileFunctionDeclaration(trimmedLine);
         } else if (trimmedLine.startsWith('if')) { // Catches if and else if
             advplLine = this.transpileIfStatement(trimmedLine);
-        } else if (trimmedLine === 'else {') {
-            advplLine = 'Else';
+        // Match 'else {' even if preceded by '}' (common formatting)
+        } else if (trimmedLine.includes('else {')) { 
+            // Extract potential preceding '}'
+            const elsePart = trimmedLine.substring(trimmedLine.indexOf('else'));
+            if (elsePart.trim() === 'else {') { // Ensure it's just 'else {' potentially after '}'
+                 advplLine = 'Else';
+                 // We need to handle the closing '}' from the previous if block here
+                 // This logic is complex; a simple approach for now:
+                 // Assume the '}' handling before this adjusted the indent correctly.
+            } else {
+                 // If it's more complex than just 'else {' after '}', mark as unsupported
+                 this.unsupportedFeatures.push(`Line ${lineNumber + 1}: Complex 'else' structure not supported: '${trimmedLine}'`);
+                 advplLine = null;
+            }
         } else if (trimmedLine.startsWith('for')) {
             advplLine = this.transpileForLoop(trimmedLine);
         } else if (trimmedLine.startsWith('while')) {
-             advplLine = `// While loops not directly supported, requires manual conversion: ${trimmedLine}`;
+             // Mark 'while' as unsupported
+             this.unsupportedFeatures.push(`Line ${lineNumber + 1}: 'while' loops are not supported.`);
+             advplLine = null; // Don't generate output for this line
         } else if (trimmedLine.match(/^[a-zA-Z_$][a-zA-Z0-9_$.]*s*(.*);?$/)) { // Includes console.log, Math.xxx(), myFunc()
             advplLine = this.transpileFunctionCall(trimmedLine);
         } else if (trimmedLine.startsWith('return')) {
@@ -178,8 +215,10 @@ class JSToADVPLTranspiler {
         } else if (trimmedLine === '{') { 
             // Opening brace often doesn't translate directly, handled by indent increase
             advplLine = null; // Don't add a line for just '{'
-        } else {
-            advplLine = `// ? ${trimmedLine}`;
+        } else if (trimmedLine !== '') { // Don't mark empty lines as errors
+            // Mark unrecognized lines as unsupported
+            this.unsupportedFeatures.push(`Line ${lineNumber + 1}: Unrecognized syntax: '${trimmedLine}'`);
+            advplLine = null; // Don't generate output
         }
 
         // Apply indent if a line was generated
