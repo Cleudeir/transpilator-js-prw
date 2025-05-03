@@ -1,103 +1,61 @@
-// Example code exports
-export const complexJsExample = `
-function processUserData(users) {
-  const activeUsers = [];
-  const nameLengths = [];
+import fs from 'fs';
+import path from 'path';
 
-  for (let i = 0; i < users.length; i++) {
-    const user = users[i];
-    if (user.isActive === true && user.age > 18) {
-      let fullName = user.firstName + ' ' + user.lastName;
-      console.log('Processing user: ' + fullName);
-      activeUsers.push(fullName.toUpperCase());
-      nameLengths.push(fullName.length);
-    } else if (user.age <= 18) {
-      console.log('Skipping minor user: ' + user.firstName);
+// Load example files
+const userManagementJs = fs.readFileSync(path.join(__dirname, 'js/user_management.js'), 'utf8');
+const userManagementPrw = fs.readFileSync(path.join(__dirname, 'prw/user_management.prw'), 'utf8');
+
+// Simple examples for quick testing
+export const simpleJsExample = `
+function processArray(items) {
+  const results = [];
+  for (let i = 0; i < items.length; i++) {
+    if (items[i] > 10) {
+      results.push(items[i] * 2);
     }
   }
-
-  let totalLength = 0;
-  let idx = 0;
-  while(idx < nameLengths.length) {
-    totalLength += nameLengths[idx];
-    idx++;
-  }
-  const averageLength = nameLengths.length > 0 ? totalLength / nameLengths.length : 0;
-
-  console.log("Active users:", activeUsers);
-  console.log("Average name length:", averageLength);
-
-  return { activeCount: activeUsers.length, avgLength: averageLength };
+  return results;
 }
 
-const sampleUsers = [
-  { firstName: 'John', lastName: 'Doe', age: 30, isActive: true },
-  { firstName: 'Jane', lastName: 'Smith', age: 17, isActive: true },
-  { firstName: 'Peter', lastName: 'Jones', age: 45, isActive: false },
-  { firstName: 'Mary', lastName: 'Brown', age: 25, isActive: true },
-];
-
-processUserData(sampleUsers);
+const numbers = [5, 12, 8, 20, 3, 15];
+const filtered = processArray(numbers);
+console.log("Processed items:", filtered);
 `;
 
-export const complexAdvplExample = `
+export const simplePrwExample = `
 #Include "Protheus.ch"
 
-// Exemplo de função ADVPL simulando processamento de dados
-User Function ProcessUserData(aUsers)
-  Local aActiveUsers := {}
-  Local aNameLengths := {}
-  Local cFullName := ""
-  Local nTotalLength := 0
-  Local nAverageLength := 0
-  Local nIdx := 0
-  Local oUser
-  Local lIsActive := .F.
-  Local nAge := 0
-
-  For nIdx := 1 To Len(aUsers)
-    oUser := aUsers[nIdx] // AdvPL usually uses objects or arrays for structures
-
-    // Assuming oUser is an array: [1]=isActive, [2]=Age, [3]=FirstName, [4]=LastName
-    lIsActive := oUser[1]
-    nAge := oUser[2]
-
-    If lIsActive == .T. .And. nAge > 18
-      cFullName := AllTrim(oUser[3]) + " " + AllTrim(oUser[4])
-      ConOut("Processando usuario: " + cFullName)
-      aAdd(aActiveUsers, Upper(cFullName))
-      aAdd(aNameLengths, Len(cFullName))
-    ElseIf nAge <= 18
-       ConOut("Pulando usuario menor: " + AllTrim(oUser[3]))
+User Function ProcessArray(aItems)
+  Local aResults := {}
+  Local nI := 0
+  
+  For nI := 1 To Len(aItems)
+    If aItems[nI] > 10
+      aAdd(aResults, aItems[nI] * 2)
     EndIf
-  Next nIdx
+  Next nI
+  
+  Return aResults
 
-  nIdx := 1
-  While nIdx <= Len(aNameLengths)
-    nTotalLength += aNameLengths[nIdx]
-    nIdx++
-  EndDo
-
-  If Len(aNameLengths) > 0
-     nAverageLength := nTotalLength / Len(aNameLengths)
-  Else
-     nAverageLength := 0
-  EndIf
-
-  ConOut("Usuarios ativos: " + Implode(",", aActiveUsers)) // Implode requires custom function or adaptation
-  ConOut("Tamanho medio nome: " + Str(nAverageLength))
-
-  Return { "activeCount" => Len(aActiveUsers), "avgLength" => nAverageLength } // Returning an object/map
-
-// Exemplo de chamada (estrutura de dados simplificada)
-Local aSampleUsers := {
-  { .T., 30, "John",  "Doe"   },
-  { .T., 17, "Jane",  "Smith" },
-  { .F., 45, "Peter", "Jones" },
-  { .T., 25, "Mary",  "Brown" }
-}
-
-ProcessUserData(aSampleUsers)
+// Example usage
+Local aNumbers := {5, 12, 8, 20, 3, 15}
+Local aFiltered := ProcessArray(aNumbers)
+ConOut("Processed items:", aFiltered)
 
 Return Nil
-`; 
+`;
+
+// Complex examples for real-world use cases
+export const complexJsExample = userManagementJs;
+
+export const complexAdvplExample = userManagementPrw;
+
+// Export additional examples by type
+export function getExampleByName(name: string, type: 'js' | 'advpl'): string {
+  switch (name) {
+    case 'user_management':
+      return type === 'js' ? userManagementJs : userManagementPrw;
+    default:
+      return type === 'js' ? simpleJsExample : simplePrwExample;
+  }
+} 

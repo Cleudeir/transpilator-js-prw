@@ -1,30 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { checkHealth } from '../lib/api';
+import React from 'react';
 
-const StatusIndicator: React.FC = () => {
-  const [isConnected, setIsConnected] = useState<boolean>(false);
+interface StatusIndicatorProps {
+  isLoading: boolean;
+  iterations?: number;
+  time?: number;
+}
 
-  useEffect(() => {
-    const checkConnection = async () => {
-      const status = await checkHealth();
-      setIsConnected(status);
-    };
-
-    // Check connection on component mount
-    checkConnection();
-
-    // Set up periodic checking
-    const interval = setInterval(checkConnection, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
+const StatusIndicator: React.FC<StatusIndicatorProps> = ({ isLoading, iterations = 0, time = 0 }) => {
+  
+  // Format execution time
+  const formatTime = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
+  
   return (
-    <div className="flex items-center">
-      <div className={`w-3 h-3 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-      <span className="text-xs text-gray-600 dark:text-gray-400">
-        {isConnected ? 'Connected' : 'Disconnected'}
-      </span>
+    <div className="flex items-center gap-4">
+      <div className="flex items-center">
+        <div className={`w-3 h-3 rounded-full mr-2 ${isLoading ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
+        <span className="text-sm">
+          {isLoading ? 'Transpiling...' : 'Ready'}
+        </span>
+      </div>
+      
+      {!isLoading && iterations > 0 && (
+        <div className="text-sm">
+          <span className="text-gray-400 mr-1">Iterations:</span>
+          <span>{iterations}</span>
+        </div>
+      )}
+      
+      {!isLoading && time > 0 && (
+        <div className="text-sm">
+          <span className="text-gray-400 mr-1">Time:</span>
+          <span>{formatTime(time)}</span>
+        </div>
+      )}
     </div>
   );
 };
