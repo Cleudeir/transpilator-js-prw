@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "composite": true
+    // "noEmit": true // Usually no need to emit JS for config files
+  },
+  "include": ["vite.config.ts", "postcss.config.cjs", "tailwind.config.cjs"] // Include relevant config files
+} 
