@@ -1,41 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
-import { simpleTranspile, TranspilationDirection } from '../lib/transpiler';
 import { debounce } from 'lodash-es'; // Using lodash for debouncing
-import { complexJsExample, complexAdvplExample } from '../lib/examples';
+import { transpileCode, loadExample, TranspilationDirection } from '../lib/api';
 
 const TranspilerArea: React.FC = () => {
-  const [jsCode, setJsCode] = useState<string>(complexJsExample);
+  const [jsCode, setJsCode] = useState<string>('');
   const [advplCode, setAdvplCode] = useState<string>("// AdvPL code will appear here after transpilation");
   const [transpilationDirection, setTranspilationDirection] = useState<TranspilationDirection>('jsToAdvpl');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Debounced transpilation function
   const debouncedTranspile = useCallback(
-    debounce((code: string, direction: TranspilationDirection) => {
+    debounce(async (code: string, direction: TranspilationDirection) => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        const result = simpleTranspile(code, direction);
+        const result = await transpileCode(code, direction);
         if (direction === 'jsToAdvpl') {
           setAdvplCode(result);
         } else {
           setJsCode(result);
         }
       } catch (error: any) {
-        console.error("Transpilation Error:", error);
+        setError(error.message || 'An error occurred during transpilation');
         const errorMessage = `// Transpilation Error: ${error.message}`;
         if (direction === 'jsToAdvpl') {
           setAdvplCode(errorMessage);
         } else {
           setJsCode(errorMessage);
         }
+      } finally {
+        setLoading(false);
       }
-    }, 500), // 500ms debounce delay
-    [] // Empty dependency array ensures the debounced function is stable
+    }, 500),
+    []
   );
 
   useEffect(() => {
-    // Initial transpilation on load
-    debouncedTranspile(jsCode, 'jsToAdvpl');
-  }, []); // Run only once on mount
+    // Fetch initial JS example from backend
+    const fetchInitialExample = async () => {
+      setLoading(true);
+      try {
+        const code = await loadExample('js');
+        setJsCode(code);
+        debouncedTranspile(code, 'jsToAdvpl');
+      } catch (error: any) {
+        setError(error.message || 'Failed to load initial example');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitialExample();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleJsChange = (value: string | undefined) => {
     const code = value || '';
@@ -51,13 +70,25 @@ const TranspilerArea: React.FC = () => {
     debouncedTranspile(code, 'advplToJs');
   };
 
-  const handleLoadExample = (type: 'js' | 'advpl') => {
-    if (type === 'js') {
-      setJsCode(complexJsExample);
-      debouncedTranspile(complexJsExample, 'jsToAdvpl');
-    } else {
-      setAdvplCode(complexAdvplExample);
-      debouncedTranspile(complexAdvplExample, 'advplToJs');
+  const handleLoadExample = async (type: 'js' | 'advpl') => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const code = await loadExample(type);
+      
+      if (type === 'js') {
+        setJsCode(code);
+        debouncedTranspile(code, 'jsToAdvpl');
+      } else {
+        setAdvplCode(code);
+        debouncedTranspile(code, 'advplToJs');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to load example');
+      console.error('Error loading example:', error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -73,6 +104,7 @@ const TranspilerArea: React.FC = () => {
               onClick={() => handleLoadExample('js')}
               className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded shadow"
               title="Load Complex JS Example"
+              disabled={loading}
             >
               Load JS Example
             </button>
@@ -100,6 +132,7 @@ const TranspilerArea: React.FC = () => {
               onClick={() => handleLoadExample('advpl')}
               className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded shadow"
               title="Load Complex AdvPL Example"
+              disabled={loading}
             >
               Load AdvPL Example
             </button>
@@ -119,9 +152,19 @@ const TranspilerArea: React.FC = () => {
             }}
           />
         </div>
-
-
       </main>
+
+      {loading && (
+        <div className="text-center text-gray-600 dark:text-gray-400">
+          Transpiling...
+        </div>
+      )}
+      
+      {error && (
+        <div className="text-center text-red-600 dark:text-red-400">
+          Error: {error}
+        </div>
+      )}
 
       <div className="w-full mt-[-1rem]">
         <p className="text-xs text-center text-red-600 dark:text-red-400">

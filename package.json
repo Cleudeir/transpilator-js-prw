@@ -6,7 +6,8 @@
   "description": "#",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
+    "server": "cd server && yarn dev",
     "build": "vite build",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
